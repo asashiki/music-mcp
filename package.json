@@ -1,0 +1,55 @@
+{
+  "name": "@asashiki/music-mcp",
+  "version": "0.1.0",
+  "description": "MCP server that lets AI drop a playable music player (Meting-compatible sources) right into the chat — search, single tracks, playlists, synced lyrics.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asashiki/music-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/asashiki/music-mcp/issues"
+  },
+  "homepage": "https://github.com/asashiki/music-mcp#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-apps",
+    "music",
+    "meting",
+    "player"
+  ],
+  "bin": {
+    "music-mcp": "dist/stdio.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:stdio": "tsx src/stdio.ts",
+    "build:widget": "node scripts/build-widget.mjs",
+    "build:server": "tsup src/server.ts src/stdio.ts --format esm --platform node --target node20 --out-dir dist --clean",
+    "build": "npm run build:server && npm run build:widget",
+    "start": "node dist/server.js",
+    "start:stdio": "node dist/stdio.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.20.3",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
