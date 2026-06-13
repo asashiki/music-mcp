@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { Readable } from "node:stream";
 import { loadConfig } from "./config.js";
+import { setupOAuth } from "./oauth.js";
 import { createMusicServer } from "./mcp.js";
 import { MUSIC_SERVERS, metingUrl } from "./meting.js";
 
@@ -77,6 +78,8 @@ async function main() {
   );
   app.use(express.json({ limit: "1mb" }));
 
+  const bearerAuth = setupOAuth(app, config.publicBaseUrl, "music-mcp");
+
   app.get("/stream/:server/:id", (req, res) => void proxyMedia(req, res, "url", "audio/mpeg"));
   app.get("/cover/:server/:id", (req, res) => void proxyMedia(req, res, "pic", "image/jpeg"));
 
@@ -115,7 +118,7 @@ async function main() {
     });
   });
 
-  app.all(mcpPaths, async (req, res) => {
+  app.all(mcpPaths, bearerAuth, async (req, res) => {
     const origin = req.headers.origin;
     if (origin && config.allowedOrigins.length > 0 && !config.allowedOrigins.includes(origin)) {
       res.status(403).json({ error: "Origin not allowed" });
