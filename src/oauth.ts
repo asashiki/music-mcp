@@ -5,6 +5,8 @@
  *
  * Endpoints added:
  *   GET  /.well-known/oauth-authorization-server  — metadata discovery
+ *   GET  /.well-known/oauth-protected-resource     — protected resource metadata
+ *   POST /oauth/register                           — dynamic client registration
  *   GET  /oauth/authorize                          — password input page
  *   POST /oauth/authorize                          — verify password, issue code
  *   POST /oauth/token                              — exchange code for token
@@ -21,6 +23,7 @@ const ENABLED = PASSWORD.length > 0;
 
 const codes = new Map<string, { token: string; expires: number }>();
 const tokens = new Set<string>();
+const clients = new Map<string, { redirectUris: string[]; clientName?: string; issuedAt: number }>();
 
 function randomHex(bytes = 16) {
   return crypto.randomBytes(bytes).toString("hex");
@@ -46,9 +49,57 @@ export function setupOAuth(app: Express, baseUrl: string, serviceName: string) {
       issuer: baseUrl,
       authorization_endpoint: `${baseUrl}/oauth/authorize`,
       token_endpoint: `${baseUrl}/oauth/token`,
+      registration_endpoint: `${baseUrl}/oauth/register`,
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code"],
-      code_challenge_methods_supported: ["S256", "plain"]
+      code_challenge_methods_supported: ["S256", "plain"],
+      token_endpoint_auth_methods_supported: ["none"],
+      scopes_supported: []
+    });
+  });
+
+  app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+    res.json({
+      resource: baseUrl,
+      authorization_servers: [baseUrl],
+      bearer_methods_supported: ["header"]
+    });
+  });
+
+  // ── Dynamic client registration ────────────────────────────────────────────
+  app.post("/oauth/register", express.json({ limit: "256kb" }), (req, res) => {
+    const body = (req.body ?? {}) as {
+      redirect_uris?: unknown;
+      client_name?: unknown;
+      grant_types?: unknown;
+      response_types?: unknown;
+      token_endpoint_auth_method?: unknown;
+    };
+    const redirectUris = Array.isArray(body.redirect_uris)
+      ? body.redirect_uris.filter((uri): uri is string => typeof uri === "string" && uri.length > 0)
+      : [];
+    if (redirectUris.length === 0) {
+      res.status(400).json({ error: "invalid_client_metadata", error_description: "redirect_uris is required" });
+      return;
+    }
+
+    const clientId = `music-mcp-${randomHex(16)}`;
+    const issuedAt = Math.floor(Date.now() / 1000);
+    clients.set(clientId, {
+      redirectUris,
+      clientName: typeof body.client_name === "string" ? body.client_name : undefined,
+      issuedAt
+    });
+
+    res.status(201).json({
+      client_id: clientId,
+      client_id_issued_at: issuedAt,
+      client_secret_expires_at: 0,
+      redirect_uris: redirectUris,
+      grant_types: ["authorization_code"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "none",
+      client_name: typeof body.client_name === "string" ? body.client_name : serviceName
     });
   });
 
@@ -108,6 +159,17 @@ button:hover{filter:brightness(1.07)}
     codes.set(code, { token, expires: Date.now() + 5 * 60 * 1000 });
     tokens.add(token);
 
+    if (!body.redirect_uri) {
+      res.status(400).json({ error: "invalid_request", error_description: "redirect_uri is required" });
+      return;
+    }
+    if (body.client_id) {
+      const client = clients.get(body.client_id);
+      if (client && !client.redirectUris.includes(body.redirect_uri)) {
+        res.status(400).json({ error: "invalid_request", error_description: "redirect_uri is not registered" });
+        return;
+      }
+    }
     const redirect = new URL(body.redirect_uri);
     redirect.searchParams.set("code", code);
     if (body.state) redirect.searchParams.set("state", body.state);
@@ -117,7 +179,11 @@ button:hover{filter:brightness(1.07)}
   // ── Token exchange ─────────────────────────────────────────────────────────
   app.post("/oauth/token", urlencodedParser, express.json(), (req, res) => {
     const code = (req.body as Record<string, string>).code;
-    const entry = code ? codes.get(code) : undefined;
+    if (!code) {
+      res.status(400).json({ error: "invalid_request", error_description: "code is required" });
+      return;
+    }
+    const entry = codes.get(code);
     if (!entry || entry.expires < Date.now()) {
       res.status(400).json({ error: "invalid_grant" });
       return;
@@ -131,6 +197,7 @@ button:hover{filter:brightness(1.07)}
     const auth = req.headers.authorization ?? "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
     if (tokens.has(token)) return next();
+    res.setHeader("WWW-Authenticate", `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
     res.status(401).json({ error: "unauthorized" });
   };
 }

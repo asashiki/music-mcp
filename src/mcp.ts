@@ -42,6 +42,10 @@ function toPayload(config: AppConfig, track: Track): TrackPayload {
   };
 }
 
+function playerJsonBlock(payload: PlayerPayload) {
+  return { type: "text" as const, text: JSON.stringify(payload) };
+}
+
 const serverSchema = z
   .enum(MUSIC_SERVERS)
   .optional()
@@ -137,7 +141,8 @@ export function createMusicServer(config: AppConfig): McpServer {
             {
               type: "text",
               text: `Music player ready: ${track.title} — ${track.artist} (${srv}). The user can press play in the widget.`
-            }
+            },
+            playerJsonBlock(payload)
           ],
           structuredContent: payload as unknown as Record<string, unknown>,
           _meta: widgetMeta
@@ -191,7 +196,8 @@ export function createMusicServer(config: AppConfig): McpServer {
             {
               type: "text",
               text: `Playlist player ready (${tracks.length} tracks, ${srv}):\n${preview}${tracks.length > 5 ? "\n…" : ""}`
-            }
+            },
+            playerJsonBlock(payload)
           ],
           structuredContent: payload as unknown as Record<string, unknown>,
           _meta: widgetMeta
