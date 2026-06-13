@@ -1,3 +1,19 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.svg">
+  <img alt="music-mcp — in-chat music player" src=".github/assets/banner-light.svg" width="100%">
+</picture>
+
+[![CI](https://github.com/asashiki/music-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/asashiki/music-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-e96ba8.svg)](LICENSE)
+![Node](https://img.shields.io/badge/node-%E2%89%A5%2020-8b8bef)
+![MCP](https://img.shields.io/badge/MCP-stdio%20%2B%20Streamable%20HTTP-3a3340)
+
+**English** · [简体中文](README.zh-CN.md)
+
+</div>
+
 # music-mcp
 
 An MCP server that lets AI drop a **playable music player** straight into the chat — cover art, sakura-styled progress bar, animated EQ, synced lyrics, and playlist queue. Audio comes from any [Meting](https://github.com/metowolf/Meting)-compatible API (netease / tencent / kugou / kuwo / baidu).
