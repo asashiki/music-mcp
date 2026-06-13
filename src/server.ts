@@ -78,7 +78,8 @@ async function main() {
   );
   app.use(express.json({ limit: "1mb" }));
 
-  const bearerAuth = setupOAuth(app, config.publicBaseUrl, "music-mcp");
+  const authServiceName = process.env.MCP_AUTH_SERVICE_NAME?.trim() || "music-mcp";
+  const bearerAuth = setupOAuth(app, config.publicBaseUrl, authServiceName);
 
   app.get("/stream/:server/:id", (req, res) => void proxyMedia(req, res, "url", "audio/mpeg"));
   app.get("/cover/:server/:id", (req, res) => void proxyMedia(req, res, "pic", "image/jpeg"));

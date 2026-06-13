@@ -74,6 +74,7 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 | `METING_API_BASE` | `https://api.qijieya.cn/meting/` | Any Meting-compatible endpoint. |
 | `DEFAULT_MUSIC_SERVER` | `netease` | Platform used when the AI doesn't specify one. |
 | `MCP_AUTH_PASSWORD` | _(empty)_ | Optional password gate for remote connectors. Leave empty to disable auth. |
+| `MCP_AUTH_SERVICE_NAME` | `music-mcp` | Optional display name on the OAuth password page. |
 
 ## OAuth password auth
 
