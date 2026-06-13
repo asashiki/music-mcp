@@ -61,7 +61,7 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 1. `cp .env.example .env`，设置 `PUBLIC_BASE_URL`（公网 HTTPS 域名）。
 2. `docker compose up -d`。
 3. 反向代理 `https://你的域名/mcp/music` → 容器 `:3000`，**另外** `/stream/*`、`/cover/*`、`/lrc/*` 也要一并转发（同一容器）。
-4. claude.ai 添加自定义连接器填 `https://你的域名/mcp/music`，OAuth 两项留空。
+4. claude.ai 添加自定义连接器填 `https://你的域名/mcp/music`。如果设置了 `MCP_AUTH_PASSWORD`，连接器会走 OAuth 动态客户端注册，并弹出密码授权页。
 
 > 宿主按 URI 缓存 `ui://` 资源。改过 widget 后记得升级 `src/widget/music-widget-html.ts` 里的版本号（`player-v1.html` → `v2` ……）。
 
@@ -75,6 +75,11 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 | `ALLOWED_ORIGINS` | PUBLIC_BASE_URL 的 origin | CORS 白名单，逗号分隔。 |
 | `METING_API_BASE` | `https://api.qijieya.cn/meting/` | 任意 Meting 兼容端点。 |
 | `DEFAULT_MUSIC_SERVER` | `netease` | AI 未指定平台时的默认值。 |
+| `MCP_AUTH_PASSWORD` | _(空)_ | 可选的远程连接器密码门禁。留空则关闭授权。 |
+
+## OAuth 密码授权
+
+设置 `MCP_AUTH_PASSWORD` 后，服务会启用一个最小 OAuth Authorization Code 流程，并暴露 OAuth discovery 与动态客户端注册端点。支持自动注册的客户端不需要手动填写 Client ID；连接时在授权页输入配置的密码即可。
 
 ## 说明与礼仪
 

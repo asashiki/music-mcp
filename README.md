@@ -59,7 +59,7 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 1. `cp .env.example .env`, set `PUBLIC_BASE_URL` (public HTTPS origin).
 2. `docker compose up -d`.
 3. Reverse-proxy `https://your-domain/mcp/music` → container `:3000`, **plus** `/stream/*`, `/cover/*`, `/lrc/*` (same container).
-4. Add a custom connector in claude.ai with `https://your-domain/mcp/music`. OAuth fields stay empty.
+4. Add a custom connector in claude.ai with `https://your-domain/mcp/music`. If `MCP_AUTH_PASSWORD` is set, the connector will use OAuth dynamic client registration and show the password authorization page.
 
 > Hosts cache `ui://` resources by URI. After widget changes, bump the version in `src/widget/music-widget-html.ts` (`player-v1.html` → `v2` ...).
 
@@ -73,6 +73,11 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 | `ALLOWED_ORIGINS` | PUBLIC_BASE_URL origin | CORS allowlist, comma separated. |
 | `METING_API_BASE` | `https://api.qijieya.cn/meting/` | Any Meting-compatible endpoint. |
 | `DEFAULT_MUSIC_SERVER` | `netease` | Platform used when the AI doesn't specify one. |
+| `MCP_AUTH_PASSWORD` | _(empty)_ | Optional password gate for remote connectors. Leave empty to disable auth. |
+
+## OAuth password auth
+
+Set `MCP_AUTH_PASSWORD` to enable a minimal OAuth Authorization Code flow for remote connectors. The server exposes OAuth discovery and dynamic client registration, so clients that support automatic registration can connect without a manually configured Client ID. During connection, enter the configured password on the authorization page.
 
 ## Notes & etiquette
 
