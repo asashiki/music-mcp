@@ -41,7 +41,7 @@ const playerPayloadSchema = {
 function cspMeta(config: AppConfig) {
   const origins = [new URL(config.publicBaseUrl).origin];
   return {
-    ui: { domain: WIDGET_DOMAIN, csp: { resourceDomains: origins, connectDomains: origins } },
+    ui: { csp: { resourceDomains: origins, connectDomains: origins } },
     "openai/widgetDomain": WIDGET_DOMAIN,
     "openai/widgetCSP": { resource_domains: origins, connect_domains: origins }
   };
