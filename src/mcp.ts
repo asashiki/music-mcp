@@ -21,10 +21,28 @@ export interface PlayerPayload {
   playlistId?: string;
 }
 
+const WIDGET_DOMAIN = "https://music-mcp.asashiki.com";
+const trackPayloadSchema = {
+  songId: z.string(),
+  server: z.string(),
+  title: z.string(),
+  artist: z.string(),
+  audioUrl: z.string(),
+  coverUrl: z.string(),
+  lrcUrl: z.string()
+};
+const playerPayloadSchema = {
+  mode: z.enum(["song", "playlist"]),
+  queue: z.array(z.object(trackPayloadSchema)),
+  startIndex: z.number(),
+  playlistId: z.string().optional()
+};
+
 function cspMeta(config: AppConfig) {
   const origins = [new URL(config.publicBaseUrl).origin];
   return {
-    ui: { csp: { resourceDomains: origins, connectDomains: origins } },
+    ui: { domain: WIDGET_DOMAIN, csp: { resourceDomains: origins, connectDomains: origins } },
+    "openai/widgetDomain": WIDGET_DOMAIN,
     "openai/widgetCSP": { resource_domains: origins, connect_domains: origins }
   };
 }
@@ -128,6 +146,7 @@ export function createMusicServer(config: AppConfig): McpServer {
         songId: z.string().min(1).max(40).describe("Platform song id, e.g. '825522' (from search_song or the user)."),
         musicServer: serverSchema
       },
+      outputSchema: playerPayloadSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
       _meta: widgetMeta
     },
@@ -170,6 +189,7 @@ export function createMusicServer(config: AppConfig): McpServer {
         limit: z.number().int().min(1).max(50).optional().describe("Max tracks to queue, default 20."),
         startIndex: z.number().int().min(0).optional().describe("Index of the track to cue first, default 0.")
       },
+      outputSchema: playerPayloadSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
       _meta: widgetMeta
     },
