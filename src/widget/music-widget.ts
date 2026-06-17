@@ -98,6 +98,7 @@ function render(data: PlayerData, platform: "chatgpt" | "claude") {
   const player = el("div", "player");
   const audio = document.createElement("audio");
   audio.preload = "metadata";
+  audio.volume = 0.55;
 
   /* top: cover + meta + eq */
   const top = el("div", "top");
