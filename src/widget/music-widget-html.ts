@@ -1,9 +1,9 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Bump the version suffix whenever the widget changes — hosts cache ui:// resources by URI. */
-export const MUSIC_WIDGET_URI = "ui://music-mcp/player-v6.html";
+export const MUSIC_WIDGET_URI = "ui://music-mcp/player-v7.html";
 export const MUSIC_WIDGET_MIME = "text/html;profile=mcp-app";
 
 /* Asashiki Design · 樱羽 Sakura tokens (inlined), light + dark via prefers-color-scheme. */
@@ -131,7 +131,11 @@ function widgetJs(): string {
   if (cachedJs !== null) return cachedJs;
   try {
     const here = dirname(fileURLToPath(import.meta.url));
-    const jsPath = resolve(here, "widget/music-widget.global.js");
+    const jsPath = [
+      resolve(here, "widget/music-widget.global.js"),
+      resolve(process.cwd(), "dist/widget/music-widget.global.js")
+    ].find(existsSync);
+    if (!jsPath) throw new Error("Widget bundle is missing");
     cachedJs = readFileSync(jsPath, "utf8");
   } catch {
     cachedJs = `document.getElementById("root").innerHTML='<div class="err">播放器未构建（npm run build）</div>';`;

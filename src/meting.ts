@@ -1,3 +1,5 @@
+import { fetchWithRedirectPolicy, readTextLimited } from "./url-policy.js";
+
 /**
  * Minimal client for Meting-compatible APIs
  * (https://github.com/metowolf/Meting — `?server=&type=&id=`).
@@ -40,20 +42,29 @@ export function metingUrl(base: string, server: string, type: string, id: string
   return u.toString();
 }
 
-async function fetchMeting(base: string, server: string, type: string, id: string): Promise<MetingRawItem[]> {
-  const res = await fetch(metingUrl(base, server, type, id), {
+async function fetchMeting(
+  base: string,
+  server: string,
+  type: string,
+  id: string,
+  allowPrivateRedirects: boolean
+): Promise<MetingRawItem[]> {
+  const res = await fetchWithRedirectPolicy(metingUrl(base, server, type, id), {
     signal: AbortSignal.timeout(15_000),
     headers: { "User-Agent": "music-mcp/0.1" }
+  }, {
+    allowPrivateInitialUrl: true,
+    allowPrivateRedirects
   });
   if (!res.ok) throw new Error(`Meting API HTTP ${res.status} (${type} ${id})`);
-  const json = (await res.json()) as unknown;
+  const json = JSON.parse(await readTextLimited(res, 1024 * 1024)) as unknown;
   if (Array.isArray(json)) return json as MetingRawItem[];
   if (json && typeof json === "object") return [json as MetingRawItem];
   throw new Error("Unexpected Meting API response shape.");
 }
 
-function toTrack(item: MetingRawItem, server: MusicServer): Track | null {
-  const songId = extractParam(item.url, "id") ?? extractParam(item.lrc, "id");
+function toTrack(item: MetingRawItem, server: MusicServer, fallbackSongId?: string): Track | null {
+  const songId = extractParam(item.url, "id") ?? extractParam(item.lrc, "id") ?? fallbackSongId;
   if (!songId) return null;
   return {
     songId,
@@ -64,24 +75,37 @@ function toTrack(item: MetingRawItem, server: MusicServer): Track | null {
   };
 }
 
-export async function searchSongs(base: string, server: MusicServer, keyword: string, limit: number): Promise<Track[]> {
-  const items = await fetchMeting(base, server, "search", keyword);
+export async function searchSongs(
+  base: string,
+  server: MusicServer,
+  keyword: string,
+  limit: number,
+  allowPrivateRedirects = false
+): Promise<Track[]> {
+  const items = await fetchMeting(base, server, "search", keyword, allowPrivateRedirects);
   return items
     .map((item) => toTrack(item, server))
     .filter((t): t is Track => t !== null)
     .slice(0, limit);
 }
 
-export async function getSong(base: string, server: MusicServer, id: string): Promise<Track> {
-  const items = await fetchMeting(base, server, "song", id);
-  const track = items.length > 0 && items[0] ? toTrack(items[0], server) : null;
+export async function getSong(base: string, server: MusicServer, id: string, allowPrivateRedirects = false): Promise<Track> {
+  const items = await fetchMeting(base, server, "song", id, allowPrivateRedirects);
+  const track = items.length > 0 && items[0] ? toTrack(items[0], server, id) : null;
   if (!track) throw new Error(`Song ${id} not found on ${server}.`);
-  // Some deployments omit the id in sub-urls for type=song; trust the requested id.
-  return { ...track, songId: track.songId || id };
+  // Some deployments omit the id in sub-URLs for type=song; the requested id
+  // is the authoritative fallback in that response shape.
+  return track;
 }
 
-export async function getPlaylist(base: string, server: MusicServer, id: string, limit: number): Promise<Track[]> {
-  const items = await fetchMeting(base, server, "playlist", id);
+export async function getPlaylist(
+  base: string,
+  server: MusicServer,
+  id: string,
+  limit: number,
+  allowPrivateRedirects = false
+): Promise<Track[]> {
+  const items = await fetchMeting(base, server, "playlist", id, allowPrivateRedirects);
   return items
     .map((item) => toTrack(item, server))
     .filter((t): t is Track => t !== null)

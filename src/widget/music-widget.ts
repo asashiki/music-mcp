@@ -1,5 +1,3 @@
-import { App } from "@modelcontextprotocol/ext-apps";
-
 interface TrackData {
   songId: string;
   server: string;
@@ -38,6 +36,9 @@ function coerceTrack(t: unknown): TrackData | null {
 }
 
 function coerce(data: unknown): PlayerData | null {
+  if (typeof data === "string") {
+    try { return coerce(JSON.parse(data)); } catch { return null; }
+  }
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
   if (!Array.isArray(d.queue)) return null;
@@ -87,13 +88,16 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 let rendered = false;
+let teardownCurrent: (() => void) | null = null;
 
-function render(data: PlayerData, platform: "chatgpt" | "claude") {
+function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
+  teardownCurrent?.();
   rendered = true;
   const root = document.getElementById("root");
   if (!root) return;
   root.innerHTML = "";
-  root.className = `platform-${platform}`;
+  root.className = "";
+  document.documentElement.dataset.bridge = bridge;
 
   const player = el("div", "player");
   const audio = document.createElement("audio");
@@ -216,7 +220,17 @@ function render(data: PlayerData, platform: "chatgpt" | "claude") {
     qrows.forEach((row, k) => row.classList.toggle("cur", k === idx));
     qrows[idx]?.scrollIntoView({ block: "nearest" });
     void loadLrc(track);
-    if (autoplay) void audio.play();
+    if (autoplay) void startPlayback();
+  }
+
+  async function startPlayback() {
+    try {
+      await audio.play();
+    } catch {
+      player.classList.remove("playing");
+      npText.textContent = "PRESS PLAY";
+      setLyric("浏览器阻止了自动播放，请手动点击播放", false);
+    }
   }
 
   audio.addEventListener("loadedmetadata", () => {
@@ -259,7 +273,7 @@ function render(data: PlayerData, platform: "chatgpt" | "claude") {
   });
 
   big.addEventListener("click", () => {
-    if (audio.paused) void audio.play();
+    if (audio.paused) void startPlayback();
     else audio.pause();
   });
   if (data.queue.length > 1) {
@@ -275,6 +289,12 @@ function render(data: PlayerData, platform: "chatgpt" | "claude") {
   player.appendChild(audio);
   root.appendChild(player);
 
+  teardownCurrent = () => {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+  };
+
   load(idx, false);
 }
 
@@ -284,7 +304,10 @@ function showError(msg: string) {
   if (root) root.innerHTML = `<div class="err">${msg}</div>`;
 }
 
-function renderToolResult(params: { structuredContent?: unknown; content?: Array<{ type: string; text?: string }> }, platform: "chatgpt" | "claude") {
+function renderToolResult(
+  params: { structuredContent?: unknown; content?: Array<{ type: string; text?: string }> },
+  bridge: "mcp-app" | "chatgpt-compat"
+) {
   let data = coerce(params?.structuredContent);
   if (!data && Array.isArray(params?.content)) {
     for (const block of params.content) {
@@ -293,45 +316,121 @@ function renderToolResult(params: { structuredContent?: unknown; content?: Array
       }
     }
   }
-  if (data) render(data, platform);
+  if (data) render(data, bridge);
 }
 
-function tryChatGpt() {
-  if (!window.openai) return;
+function installChatGptCompatibility() {
   const apply = () => {
     const data = coerce(window.openai?.toolOutput);
-    if (data) render(data, "chatgpt");
+    if (data) render(data, "chatgpt-compat");
   };
   apply();
   window.addEventListener("openai:set_globals", apply as EventListener);
-  window.addEventListener("message", (event) => {
-    if (event.source !== window.parent) return;
-    const message = event.data;
-    if (!message || message.jsonrpc !== "2.0") return;
-    if (message.method !== "ui/notifications/tool-result") return;
-    renderToolResult(message.params, "chatgpt");
-  }, { passive: true });
 }
 
-async function tryMcpApps() {
-  try {
-    const app = new App({ name: "music-mcp", version: "0.1.0" });
-    /* Use addEventListener so the handler is registered synchronously before connect() */
-    app.addEventListener("toolresult", (params: { structuredContent?: unknown; content?: Array<{ type: string; text?: string }> }) => {
-      console.debug("[music-mcp] ontoolresult params:", JSON.stringify(params)?.slice(0, 300));
-      renderToolResult(params, "claude");
+type RpcMessage = {
+  jsonrpc?: unknown;
+  id?: unknown;
+  method?: unknown;
+  params?: unknown;
+  result?: unknown;
+  error?: unknown;
+};
+
+let nextRequestId = 1;
+const pendingRequests = new Map<number, {
+  resolve: (result: unknown) => void;
+  reject: (error: unknown) => void;
+}>();
+
+function postMessage(message: Record<string, unknown>) {
+  if (window.parent === window) return;
+  window.parent.postMessage({ jsonrpc: "2.0", ...message }, "*");
+}
+
+function request(method: string, params: Record<string, unknown>): Promise<unknown> {
+  const id = nextRequestId++;
+  postMessage({ id, method, params });
+  return new Promise((resolve, reject) => {
+    pendingRequests.set(id, { resolve, reject });
+    window.setTimeout(() => {
+      const pending = pendingRequests.get(id);
+      if (!pending) return;
+      pendingRequests.delete(id);
+      reject(new Error(`${method} timed out`));
+    }, 5000);
+  });
+}
+
+function installMcpAppsBridge() {
+  window.addEventListener("message", (event) => {
+    if (event.source !== window.parent) return;
+    const message = event.data as RpcMessage;
+    if (!message || message.jsonrpc !== "2.0") return;
+
+    if (typeof message.id === "number" && ("result" in message || "error" in message)) {
+      const pending = pendingRequests.get(message.id);
+      if (!pending) return;
+      pendingRequests.delete(message.id);
+      if (message.error) pending.reject(message.error);
+      else pending.resolve(message.result);
+      return;
+    }
+
+    if (message.method === "ui/notifications/tool-result") {
+      renderToolResult(
+        (message.params ?? {}) as { structuredContent?: unknown; content?: Array<{ type: string; text?: string }> },
+        "mcp-app"
+      );
+      return;
+    }
+
+    if (message.method === "ui/notifications/host-context-changed") {
+      const context = (message.params ?? {}) as { locale?: unknown };
+      if (typeof context.locale === "string") document.documentElement.lang = context.locale;
+      return;
+    }
+
+    if (message.method === "ui/notifications/request-teardown") {
+      teardownCurrent?.();
+    }
+  }, { passive: true });
+
+  void request("ui/initialize", {
+    appInfo: { name: "music-mcp", version: "0.2.0" },
+    appCapabilities: {},
+    protocolVersion: "2026-01-26"
+  }).then((result) => {
+    const host = result as { hostContext?: { locale?: unknown } } | undefined;
+    if (typeof host?.hostContext?.locale === "string") {
+      document.documentElement.lang = host.hostContext.locale;
+    }
+    postMessage({ method: "ui/notifications/initialized", params: {} });
+  }).catch((error) => {
+    console.debug("[music-mcp] MCP Apps initialization unavailable:", error);
+  });
+
+  const root = document.getElementById("root");
+  if (root && typeof ResizeObserver !== "undefined") {
+    const observer = new ResizeObserver(() => {
+      postMessage({
+        method: "ui/notifications/size-changed",
+        params: {
+          width: Math.ceil(root.getBoundingClientRect().width),
+          height: Math.ceil(root.getBoundingClientRect().height)
+        }
+      });
     });
-    await app.connect();
-  } catch (e) {
-    console.debug("[music-mcp] MCP Apps connect skipped:", e);
+    observer.observe(root);
   }
 }
 
 function boot() {
-  /* Run both bridges in parallel — rendered flag prevents double-render */
-  tryChatGpt();
-  void tryMcpApps();
-  setTimeout(() => showError("等待音乐数据..."), 4000);
+  // MCP Apps is the portable path. window.openai is only a compatibility
+  // fallback for older ChatGPT hosts and is feature-detected, never assumed.
+  installMcpAppsBridge();
+  installChatGptCompatibility();
+  setTimeout(() => showError("等待宿主发送音乐数据；若持续显示，请检查 MCP Apps bridge 与资源缓存。"), 4000);
 }
 
 if (document.readyState === "loading") {
