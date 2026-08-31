@@ -16,21 +16,15 @@
 
 # music-mcp
 
-让 AI 直接在聊天里放出一个**可播放的音乐播放器**——封面、樱羽风进度条、律动 EQ、歌词同步高亮、歌单队列连播。音源走任意 [Meting](https://github.com/metowolf/Meting) 兼容 API（netease / tencent / kugou / kuwo / baidu）。
+**说出想听的歌，AI 就在聊天里放出一个真正可以播放的音乐播放器。**
+
+它包含封面、同步歌词、动态进度条和歌单连播；音源来自任意 [Meting](https://github.com/metowolf/Meting) 兼容 API。
 
 ## 工作方式
 
 1. **`search_song`** — AI 用关键词搜歌，拿到真实的平台歌曲 ID（工具说明明确要求 AI 不许编 ID，不确定就先搜）。
 2. **`play_song`** — 为单曲渲染播放器 widget。
 3. **`play_playlist`** — 整个歌单进队列（上一首/下一首、点队列跳转、自动连播）。
-
-所有媒体都经由服务自己的域名代理（`/stream/:server/:id`、`/cover/...`、`/lrc/...`）：
-
-- widget iframe 的 CSP 白名单只需要**一个 origin**（`PUBLIC_BASE_URL`）；
-- 各平台 CDN 的 302 重定向链不会被 widget CSP 拦截；
-- `Range` 请求头透传，进度条可以随意拖动。
-
-> 实现细节：网易云的封面要用独立的封面 ID（不是歌曲 ID），服务端会自动从 Meting 返回的 pic 链接里解析（直接拿歌曲 ID 请求封面会失败）。
 
 ## 播放器特性
 
@@ -83,6 +77,10 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 设置 `MCP_AUTH_PASSWORD` 后，服务会启用一个最小 OAuth Authorization Code 流程，并暴露 OAuth discovery 与动态客户端注册端点。支持自动注册的客户端不需要手动填写 Client ID；连接时在授权页输入配置的密码即可。
 
 ## 说明与礼仪
+
+音频、封面和歌词都会经过服务自己的域名代理，从而简化 widget 的 CSP、避开平台 CDN 重定向问题，并保留进度拖动所需的 `Range` 请求。
+
+网易云封面使用独立的封面 ID；服务端会自动从 Meting 返回的图片链接中解析，无需调用方处理。
 
 - 曲目按需从配置的 Meting API 流式播放，本服务不落盘任何音频。
 - 可用性取决于上游平台（区域限制、付费曲目等），widget 会优雅显示加载失败而不是整个崩掉。
