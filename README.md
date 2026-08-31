@@ -16,19 +16,15 @@
 
 # music-mcp
 
-An MCP server that lets AI drop a **playable music player** straight into the chat — cover art, sakura-styled progress bar, animated EQ, synced lyrics, and playlist queue. Audio comes from any [Meting](https://github.com/metowolf/Meting)-compatible API (netease / tencent / kugou / kuwo / baidu).
+**Ask for a song and get a real, playable music player directly inside the chat.**
+
+It includes cover art, synced lyrics, an animated progress bar, and playlist playback. Music comes from any [Meting](https://github.com/metowolf/Meting)-compatible API.
 
 ## How it works
 
 1. **`search_song`** — AI searches a platform by keyword and gets real song ids (so it never has to invent them).
 2. **`play_song`** — renders the player widget for one track.
 3. **`play_playlist`** — queues a whole platform playlist (prev/next, click-to-jump queue, auto-advance).
-
-The server proxies all media through its own origin (`/stream/:server/:id`, `/cover/...`, `/lrc/...`):
-
-- the widget iframe only needs **one CSP origin** (`PUBLIC_BASE_URL`),
-- platform CDN redirect chains can't break `<audio>` under widget CSP,
-- `Range` headers are forwarded, so seeking works.
 
 ## Player features
 
@@ -81,6 +77,8 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 Set `MCP_AUTH_PASSWORD` to enable a minimal OAuth Authorization Code flow for remote connectors. The server exposes OAuth discovery and dynamic client registration, so clients that support automatic registration can connect without a manually configured Client ID. During connection, enter the configured password on the authorization page.
 
 ## Notes & etiquette
+
+The server proxies audio, cover art, and lyrics through its own origin. This keeps the widget CSP simple, avoids platform CDN redirect problems, and forwards `Range` headers so seeking works.
 
 - Tracks are streamed on demand from the configured Meting API; nothing is stored on disk.
 - Availability depends on the upstream platform (region locks, paid tracks). The widget shows a graceful "load failed" state instead of breaking.
