@@ -35,8 +35,8 @@ The server proxies all media through its own origin (`/stream/:server/:id`, `/co
 ## Player features
 
 - Asashiki sakura design tokens, light/dark via `prefers-color-scheme`
-- Cover art with glow fallback, NOW PLAYING skewed badge, 5-bar animated EQ
-- Progress bar with signature −12° cut fill, click to seek, mono timestamps
+- Cover art with sakura/lavender fallback and animated EQ during playback
+- Gradient progress with click, drag and keyboard seeking
 - **Synced lyrics**: fetches and parses LRC, highlights the current line
 - Playlist queue with current-track highlight and auto-advance
 
@@ -110,3 +110,5 @@ npm run build        # server + ~8 KB widget inlined into the ui:// resource
 ## License
 
 MIT
+
+[Media troubleshooting](docs/PUBLIC-MEDIA.zh-CN.md)

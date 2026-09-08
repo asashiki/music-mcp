@@ -122,7 +122,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
   coverImg.alt = ""; coverImg.hidden = true;
   coverImg.addEventListener("load", () => { coverImg.hidden = false; });
   coverImg.addEventListener("error", () => { coverImg.hidden = true; });
-  cover.append(el("span", "mark", "♪"), coverImg);
+  cover.append(el("span", "mark"), coverImg);
   const meta = el("div", "meta"), titleEl = el("b"), artistEl = el("span", "artist");
   meta.append(titleEl, artistEl);
   const ctrls = el("div", "ctrls");
@@ -133,7 +133,9 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
   big.setAttribute("aria-label", "播放"); big.innerHTML = SVG_PLAY + SVG_PAUSE;
   if (data.queue.length > 1) ctrls.append(prev, big, next);
   else ctrls.append(big);
-  top.append(cover, meta, ctrls);
+  const eq = el("div", "eq"); eq.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 5; i++) eq.append(el("i"));
+  top.append(cover, meta, eq);
 
   const pgwrap = el("div", "pgwrap"), pg = el("input", "pg");
   pg.type = "range"; pg.min = "0"; pg.max = "1000"; pg.value = "0"; pg.disabled = true;
@@ -144,6 +146,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
       audio.currentTime = Number(pg.value) / 1000 * audio.duration;
       now.textContent = fmtTime(audio.currentTime);
+      pg.style.setProperty("--progress", `${Number(pg.value) / 10}%`);
     }
   });
   const lyric = el("div", "lyric"), status = el("div", "status");
@@ -195,7 +198,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
       if (name === "AbortError") return; // A newer user action replaced this play.
       setPlaying(false);
       setStatus(name === "NotAllowedError" ? "请点击播放，允许浏览器播放音频。"
-        : "音频无法播放，请重试或换一首歌曲。");
+        : "音频无法播放：媒体地址不可用或返回了不支持的内容。");
     }
   }
   function load(i: number, autoplay: boolean) {
@@ -208,7 +211,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
     if (track.coverUrl) coverImg.src = track.coverUrl;
     else coverImg.removeAttribute("src");
     audio.src = track.audioUrl;
-    pg.value = "0"; pg.disabled = true; now.textContent = "0:00"; total.textContent = "0:00";
+    pg.value = "0"; pg.style.setProperty("--progress", "0%"); pg.disabled = true; now.textContent = "0:00"; total.textContent = "0:00";
     // Keep the queue compact without an inner scrollbar or a scrollIntoView
     // call that can unexpectedly move the surrounding conversation.
     const start = Math.max(0, Math.min(idx - 2, data.queue.length - 5));
@@ -227,6 +230,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
     if (Number.isFinite(audio.duration) && audio.duration > 0) {
       pg.value = String(audio.currentTime / audio.duration * 1000);
       now.textContent = fmtTime(audio.currentTime);
+      pg.style.setProperty("--progress", `${Number(pg.value) / 10}%`);
       pg.setAttribute("aria-valuetext", `${fmtTime(audio.currentTime)} / ${fmtTime(audio.duration)}`);
     }
     let k = lrcLines.length - 1;
@@ -242,7 +246,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
   });
   audio.addEventListener("error", () => {
     if (!active) return;
-    setPlaying(false); setStatus("音频加载失败，请重试或换一首歌曲。");
+    setPlaying(false); setStatus("音频加载失败：请检查媒体地址能否公开访问。");
   });
   big.addEventListener("click", () => {
     if (audio.paused) { if (audio.error) audio.load(); void startPlayback(); }
@@ -250,7 +254,7 @@ function render(data: PlayerData, bridge: "mcp-app" | "chatgpt-compat") {
   });
   prev.addEventListener("click", () => load(idx - 1, true));
   next.addEventListener("click", () => load(idx + 1, true));
-  player.append(top, pgwrap, lyric, status);
+  player.append(top, pgwrap, ctrls, lyric, status);
   if (qrows.length) player.append(queueBox);
   player.append(audio); root.append(player);
   teardownCurrent = () => {

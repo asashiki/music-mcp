@@ -162,7 +162,7 @@ export function createMusicHttpApp(config: AppConfig) {
     res.json({
       ok: true,
       service: "music-mcp",
-      version: "0.2.1",
+      version: "0.2.2",
       transport: "streamable-http",
       latestProtocolVersion: LATEST_PROTOCOL_VERSION,
       supportedProtocolVersions: SUPPORTED_PROTOCOL_VERSIONS,

@@ -198,7 +198,7 @@ export function createMusicServer(config: AppConfig): McpServer {
           content: [
             {
               type: "text",
-              text: `Music player ready: ${track.title} — ${track.artist} (${srv}). The user can press play in the widget.`
+              text: `Player rendered for ${track.title} — ${track.artist} (${srv}). Media URLs have not been fetched or playback verified. Do not report playback success; the user must test play in the widget.`
             },
             playerJsonBlock(payload)
           ],
@@ -264,7 +264,7 @@ export function createMusicServer(config: AppConfig): McpServer {
           content: [
             {
               type: "text",
-              text: `Playlist player ready (${tracks.length} tracks, ${srv}):\n${preview}${tracks.length > 5 ? "\n…" : ""}`
+              text: `Playlist rendered; media access and playback are unverified (${tracks.length} tracks, ${srv}):\n${preview}${tracks.length > 5 ? "\n…" : ""}`
             },
             playerJsonBlock(payload)
           ],
