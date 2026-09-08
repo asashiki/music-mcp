@@ -1,5 +1,7 @@
 # ChatGPT 播放器恢复与 0.2 升级手册
 
+> 2026-09-08：新增 [播放器闪烁修复说明](CHATGPT-PLAYER-STABILITY.zh-CN.md)。0.2.1 使用 player-v8；下文 0.2 的检查通过不代表 ChatGPT 实际播放已通过。
+
 ## 这次故障不是单一 CSS 问题
 
 2026-08-30 的只读线上检查中，`https://music-mcp.asashiki.com/healthz` 返回 `502 Bad Gateway`（connection refused）。旧代码又把同一个 origin 固定写进 `openai/widgetDomain`。ChatGPT 会使用这项 OpenAI 元数据创建组件环境；服务端不可达时，组件资源、音频和歌词都会一起失败。Claude 对这项私有别名的处理不同，所以会出现“Claude 看起来还能工作、ChatGPT 组件加载不出来”的差异。

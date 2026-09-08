@@ -1,7 +1,7 @@
 {
   "name": "@asashiki/music-mcp",
-  "version": "0.2.0",
-  "description": "MCP server that lets AI drop a playable music player (Meting-compatible sources) right into the chat — search, single tracks, playlists, synced lyrics.",
+  "version": "0.2.1",
+  "description": "MCP server that lets AI drop a playable music player (Meting-compatible sources) right into the chat \u2014 search, single tracks, playlists, synced lyrics.",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -33,7 +33,8 @@
     "start": "node dist/server.js",
     "start:stdio": "node dist/stdio.js",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && node --import tsx --test src/*.test.ts"
+    "test": "npm run build && node --import tsx --test src/*.test.ts",
+    "preview:player": "npm run build && node --import tsx scripts/player-preview.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0",

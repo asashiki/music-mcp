@@ -88,7 +88,7 @@ const serverSchema = z
   .describe("Music platform: netease (default) | tencent | kugou | kuwo | baidu.");
 
 export function createMusicServer(config: AppConfig): McpServer {
-  const server = new McpServer({ name: "music-mcp", version: "0.2.0" });
+  const server = new McpServer({ name: "music-mcp", version: "0.2.1" });
   const csp = musicWidgetResourceMeta(config);
   const widgetLinkMeta = {
     ui: { resourceUri: MUSIC_WIDGET_URI },
