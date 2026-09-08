@@ -18,6 +18,7 @@ ENV NODE_OPTIONS=--enable-source-maps
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
+COPY scripts/check-media.mjs ./scripts/check-media.mjs
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
