@@ -18,6 +18,8 @@
 
 An MCP server that lets AI drop a **playable music player** straight into the chat — cover art, sakura-styled progress bar, animated EQ, synced lyrics, and playlist queue. Audio comes from any [Meting](https://github.com/metowolf/Meting)-compatible API (netease / tencent / kugou / kuwo / baidu).
 
+Version 0.2 serves both MCP 2026-07-28 and legacy 2025 clients. The player is standards-first (`ui/*` MCP Apps bridge); `window.openai` is a progressive fallback instead of a separate ChatGPT-only implementation.
+
 ## How it works
 
 1. **`search_song`** — AI searches a platform by keyword and gets real song ids (so it never has to invent them).
@@ -49,9 +51,9 @@ npm start            # Streamable HTTP on :3000 (/mcp/music, /mcp alias, /health
 Smoke test:
 
 ```bash
-curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_song","arguments":{"keyword":"夜に駆ける"}}}'
+curl -s localhost:3000/healthz
+curl -s localhost:3000/diagnostics/mcp-app
+npm test
 ```
 
 ## Remote deployment (claude.ai / ChatGPT web)
@@ -59,7 +61,9 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 1. `cp .env.example .env`, set `PUBLIC_BASE_URL` (public HTTPS origin).
 2. `docker compose up -d`.
 3. Reverse-proxy `https://your-domain/mcp/music` → container `:3000`, **plus** `/stream/*`, `/cover/*`, `/lrc/*` (same container).
-4. Add a custom connector in claude.ai with `https://your-domain/mcp/music`. If `MCP_AUTH_PASSWORD` is set, the connector will use OAuth dynamic client registration and show the password authorization page.
+4. Add a custom connector in ChatGPT or Claude with `https://your-domain/mcp/music`. If `MCP_AUTH_PASSWORD` is set, the connector will use OAuth dynamic client registration and show the password authorization page.
+
+For an existing deployment, use a second port/domain as a canary and switch the reverse proxy only after testing. Do not overwrite the working container in place.
 
 > Hosts cache `ui://` resources by URI. After widget changes, bump the version in `src/widget/music-widget-html.ts` (`player-v1.html` → `v2` ...).
 
@@ -71,14 +75,22 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 | `PORT` | `3000` | HTTP port. |
 | `MCP_HTTP_PATH` | `/mcp/music` | Streamable HTTP MCP route. |
 | `ALLOWED_ORIGINS` | PUBLIC_BASE_URL origin | CORS allowlist, comma separated. |
+| `ALLOWED_HOSTS` | public hostname + loopback | Host header allowlist; hostnames, not URLs. |
 | `METING_API_BASE` | `https://api.qijieya.cn/meting/` | Any Meting-compatible endpoint. |
+| `METING_ALLOW_PRIVATE_REDIRECTS` | `false` | Allow redirects to private networks; normally keep disabled. |
 | `DEFAULT_MUSIC_SERVER` | `netease` | Platform used when the AI doesn't specify one. |
+| `MCP_WIDGET_DOMAIN` | _(empty)_ | Optional dedicated widget HTTPS origin; leave empty unless actually deployed. |
 | `MCP_AUTH_PASSWORD` | _(empty)_ | Optional password gate for remote connectors. Leave empty to disable auth. |
+| `MCP_AUTH_TOKEN_SECRET` | auth password | Stable access-token signing secret; set separately in production. |
 | `MCP_AUTH_SERVICE_NAME` | `music-mcp` | Optional display name on the OAuth password page. |
+| `MCP_OAUTH_SCOPE` | `tools:read` | OAuth scope. |
+| `MCP_OAUTH_ALLOW_LEGACY_RESOURCE_OMISSION` | `true` | Compatibility for older clients that omit RFC 8707 `resource`. |
 
 ## OAuth password auth
 
-Set `MCP_AUTH_PASSWORD` to enable a minimal OAuth Authorization Code flow for remote connectors. The server exposes OAuth discovery and dynamic client registration, so clients that support automatic registration can connect without a manually configured Client ID. During connection, enter the configured password on the authorization page.
+Set `MCP_AUTH_PASSWORD` to enable OAuth 2.1 Authorization Code + S256 PKCE for remote connectors. Codes and tokens are bound to the client, exact redirect URI, scope, PKCE challenge, and RFC 8707 resource audience. The server exposes OAuth discovery, Protected Resource Metadata, and dynamic registration.
+
+Dynamic registrations and unredeemed codes are in memory (single-instance self-hosting); signed access tokens survive restarts when `MCP_AUTH_TOKEN_SECRET` stays stable.
 
 ## Notes & etiquette
 
@@ -91,7 +103,8 @@ Set `MCP_AUTH_PASSWORD` to enable a minimal OAuth Authorization Code flow for re
 ```bash
 npm run dev          # HTTP server with reload
 npm run typecheck
-npm run build        # server (tsup) + widget (IIFE inlined into the ui:// resource)
+npm test             # build + OAuth/MCP/App/media-proxy integration tests
+npm run build        # server + ~8 KB widget inlined into the ui:// resource
 ```
 
 ## License

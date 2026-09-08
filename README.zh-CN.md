@@ -18,6 +18,8 @@
 
 让 AI 直接在聊天里放出一个**可播放的音乐播放器**——封面、樱羽风进度条、律动 EQ、歌词同步高亮、歌单队列连播。音源走任意 [Meting](https://github.com/metowolf/Meting) 兼容 API（netease / tencent / kugou / kuwo / baidu）。
 
+0.2 版同时服务 MCP 2026-07-28 与旧版 2025 客户端；播放器以开放的 MCP Apps `ui/*` bridge 为主，`window.openai` 仅作为渐进增强，不再按 ChatGPT/Claude 名称分叉实现。
+
 ## 工作方式
 
 1. **`search_song`** — AI 用关键词搜歌，拿到真实的平台歌曲 ID（工具说明明确要求 AI 不许编 ID，不确定就先搜）。
@@ -51,9 +53,9 @@ npm start            # Streamable HTTP，:3000（/mcp/music，/mcp 别名，/hea
 本机冒烟测试：
 
 ```bash
-curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
-  -H 'Accept: application/json, text/event-stream' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_song","arguments":{"keyword":"夜に駆ける"}}}'
+curl -s localhost:3000/healthz
+curl -s localhost:3000/diagnostics/mcp-app
+npm test
 ```
 
 ## 远程部署（连接 claude.ai / ChatGPT 网页端）
@@ -61,7 +63,9 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 1. `cp .env.example .env`，设置 `PUBLIC_BASE_URL`（公网 HTTPS 域名）。
 2. `docker compose up -d`。
 3. 反向代理 `https://你的域名/mcp/music` → 容器 `:3000`，**另外** `/stream/*`、`/cover/*`、`/lrc/*` 也要一并转发（同一容器）。
-4. claude.ai 添加自定义连接器填 `https://你的域名/mcp/music`。如果设置了 `MCP_AUTH_PASSWORD`，连接器会走 OAuth 动态客户端注册，并弹出密码授权页。
+4. 在 ChatGPT 或 Claude 添加自定义连接器，地址填 `https://你的域名/mcp/music`。如果设置了 `MCP_AUTH_PASSWORD`，连接器会走 OAuth 动态客户端注册，并弹出密码授权页。
+
+已经在用旧版时不要直接覆盖。先用新域名或新端口做蓝绿测试，再切反向代理；完整步骤见 [ChatGPT 播放器恢复与升级手册](docs/CHATGPT-PLAYER-RECOVERY.zh-CN.md)。
 
 > 宿主按 URI 缓存 `ui://` 资源。改过 widget 后记得升级 `src/widget/music-widget-html.ts` 里的版本号（`player-v1.html` → `v2` ……）。
 
@@ -73,14 +77,22 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 | `PORT` | `3000` | HTTP 端口。 |
 | `MCP_HTTP_PATH` | `/mcp/music` | Streamable HTTP MCP 路由。 |
 | `ALLOWED_ORIGINS` | PUBLIC_BASE_URL 的 origin | CORS 白名单，逗号分隔。 |
+| `ALLOWED_HOSTS` | PUBLIC_BASE_URL 的主机名 + 本机地址 | Host header 白名单，填写主机名而不是 URL。 |
 | `METING_API_BASE` | `https://api.qijieya.cn/meting/` | 任意 Meting 兼容端点。 |
+| `METING_ALLOW_PRIVATE_REDIRECTS` | `false` | 是否允许 Meting 把媒体请求重定向到私网；通常不要开启。 |
 | `DEFAULT_MUSIC_SERVER` | `netease` | AI 未指定平台时的默认值。 |
+| `MCP_WIDGET_DOMAIN` | _(空)_ | 可选的专用 widget HTTPS origin；未真正部署专用域时不要填写。 |
 | `MCP_AUTH_PASSWORD` | _(空)_ | 可选的远程连接器密码门禁。留空则关闭授权。 |
+| `MCP_AUTH_TOKEN_SECRET` | MCP_AUTH_PASSWORD | access token 签名密钥；生产环境建议单独生成并保持稳定。 |
 | `MCP_AUTH_SERVICE_NAME` | `music-mcp` | OAuth 密码页显示名称。 |
+| `MCP_OAUTH_SCOPE` | `tools:read` | OAuth scope。 |
+| `MCP_OAUTH_ALLOW_LEGACY_RESOURCE_OMISSION` | `true` | 兼容不发送 RFC 8707 `resource` 的旧客户端；确认兼容性后可改为 `false`。 |
 
 ## OAuth 密码授权
 
-设置 `MCP_AUTH_PASSWORD` 后，服务会启用一个最小 OAuth Authorization Code 流程，并暴露 OAuth discovery 与动态客户端注册端点。支持自动注册的客户端不需要手动填写 Client ID；连接时在授权页输入配置的密码即可。
+设置 `MCP_AUTH_PASSWORD` 后，服务会启用 OAuth 2.1 Authorization Code + S256 PKCE，并暴露 OAuth discovery、Protected Resource Metadata 与动态客户端注册端点。授权码绑定 client、redirect URI、PKCE challenge、scope 和 RFC 8707 resource，access token 也绑定具体 MCP audience。支持自动注册的客户端不需要手动填写 Client ID；连接时在授权页输入配置的密码即可。
+
+动态注册和未兑换授权码当前保存在内存中，适合单实例自托管；access token 使用稳定密钥签名，正常重启后仍有效。多副本部署前应把 OAuth 临时状态迁移到共享存储。
 
 ## 说明与礼仪
 
@@ -93,7 +105,8 @@ curl -s -X POST localhost:3000/mcp -H 'Content-Type: application/json' \
 ```bash
 npm run dev          # HTTP 服务热重载
 npm run typecheck
-npm run build        # 服务端 (tsup) + widget（IIFE 内联进 ui:// 资源）
+npm test             # 构建 + OAuth/MCP/App/媒体代理端到端测试
+npm run build        # 服务端 (tsup) + 8 KB 级 widget（IIFE 内联进 ui:// 资源）
 ```
 
 ## 许可
