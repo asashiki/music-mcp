@@ -16,10 +16,7 @@ export async function checkMedia(url, kind) {
     await reader?.cancel(); // Never download an entire song for this check.
     const bytes = first?.value ?? new Uint8Array();
     const prefix = new TextDecoder().decode(bytes.subarray(0, 160)).trim();
-    let wrongBody = /^</.test(prefix);
-    if (/^[{[]/.test(prefix)) {
-      try { JSON.parse(new TextDecoder().decode(bytes)); wrongBody = true; } catch { /* LRC tags are not JSON. */ }
-    }
+    const wrongBody = /^</.test(prefix) || (kind !== 'lyrics' && /^[{[]/.test(prefix));
     const mediaType = kind === 'audio' ? /^audio\/|^application\/octet-stream$/
       : kind === 'cover' ? /^image\// : /^text\//;
     const ok = response.ok && bytes.length > 0 && mediaType.test(mime) && !wrongBody;
